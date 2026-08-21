@@ -6,7 +6,11 @@ set nocompatible nomore
 set encoding=utf-8
 const ROOT = fnamemodify(resolve(expand('<sfile>:p')), ':h:h')
 execute 'set runtimepath^=' .. fnameescape(ROOT)
+g:simplepairs_default_mappings = 'invalid'
+g:simplepairs_disabled_filetypes = 'invalid'
 execute 'source ' .. fnameescape(ROOT .. '/plugin/simplepairs.vim')
+assert_equal(1, g:simplepairs_default_mappings)
+assert_true(index(g:simplepairs_disabled_filetypes, 'help') >= 0)
 
 new
 setlocal filetype=vim
@@ -57,12 +61,15 @@ assert_equal("'", simplepairs#Open("'"))
 setline(1, 'x\\y')
 cursor(1, 4)
 assert_equal("''\<Left>", simplepairs#Open("'"))
-# A run longer than the tail is reported as even whatever its true parity.  That
-# is the deliberate price of not walking the run: unbounded, a line ending in
-# 8000 backslashes cost 1465 us on a single keystroke.
+# A run longer than the tail has unknown parity.  It fails closed instead of
+# inventing a partner: unbounded, a line ending in 8000 backslashes cost 1465
+# us on a single keystroke, while a missed partner is safer than a wrong one.
 setline(1, repeat('\', 65) .. 'y')
 cursor(1, 66)
-assert_equal("''\<Left>", simplepairs#Open("'"))
+assert_equal("'", simplepairs#Open("'"))
+setline(1, repeat('\', 66) .. 'y')
+cursor(1, 67)
+assert_equal("'", simplepairs#Open("'"))
 setline(1, repeat('\', 63) .. 'y')
 cursor(1, 64)
 assert_equal("'", simplepairs#Open("'"))
@@ -82,8 +89,23 @@ b:simplepairs_disable = 1
 assert_equal('(', simplepairs#Open('('))
 assert_equal("\<CR>", simplepairs#Enter())
 
+# Runtime configuration corruption must not escape from an <expr> mapping.
+b:simplepairs_disable = 'invalid'
+g:simplepairs_disabled_filetypes = 'invalid'
+assert_equal("()\<Left>", simplepairs#Open('('))
+setlocal filetype=help
+assert_equal('(', simplepairs#Open('('))
+setlocal filetype=vim
+b:simplepairs_disable = v:true
+assert_equal('(', simplepairs#Open('('))
+b:simplepairs_disable = 0
+g:simplepairs_disabled_filetypes = ['vim', 42]
+assert_equal('(', simplepairs#Open('('))
+g:simplepairs_disabled_filetypes = []
+
 assert_equal(2, exists(':SimplePairsToggle'))
 assert_match('simplepairs#Open', maparg('(', 'i'))
+silent simplepairs#Health()
 
 if !empty(v:errors)
   writefile(v:errors, ROOT .. '/tests/errors.log')

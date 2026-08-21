@@ -13,4 +13,11 @@ Set g:simplepairs_default_mappings to zero before loading to keep mappings
 under vimrc control.  The expression functions simplepairs#Open(), #Close(),
 #Backspace() and #Enter() are public integration points.
 
+g:simplepairs_disabled_filetypes defaults to help, qf, terminal, simpletree,
+simpleminimap and simpleplug.  Configuration values are type-checked; a bad
+later assignment cannot throw from an expression mapping.
+
+Only a bounded cursor neighborhood is inspected.  An escape-backslash run
+longer than that bound leaves a quote unpaired rather than guessing its parity.
+
 vim:tw=78:ts=8:noet:ft=help:norl:

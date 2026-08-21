@@ -95,6 +95,30 @@ assert_true(long_run < short_run * RATIO,
     .. '%.1f us is over %.0fx the same after 64 %.1f us',
     long_run, RATIO, short_run))
 
+# A bounded regex is not enough if preparing its arguments still copies the
+# entire prefix and suffix.  Around() used to materialize both halves on every
+# expression mapping; compare the same operation at opposite ends of a 128 KB
+# line with its one-byte equivalent to keep both directions constant-time.
+setline(1, repeat('a', 131072))
+cursor(1, 131072)
+const long_prefix = Best(20, () => simplepairs#Open('('))
+setline(1, 'a')
+cursor(1, 1)
+const short_prefix = Best(20, () => simplepairs#Open('('))
+assert_true(long_prefix < short_prefix * RATIO,
+  printf('Open() copied the whole prefix again: 128 KB %.1f us is over %.0fx '
+    .. 'one byte %.1f us', long_prefix, RATIO, short_prefix))
+
+setline(1, repeat('a', 131072))
+cursor(1, 1)
+const long_suffix = Best(20, () => simplepairs#Close(')'))
+setline(1, 'a')
+cursor(1, 1)
+const short_suffix = Best(20, () => simplepairs#Close(')'))
+assert_true(long_suffix < short_suffix * RATIO,
+  printf('Close() copied the whole suffix again: 128 KB %.1f us is over %.0fx '
+    .. 'one byte %.1f us', long_suffix, RATIO, short_suffix))
+
 if !empty(v:errors)
   writefile(v:errors, ROOT .. '/tests/errors.log')
   cquit
