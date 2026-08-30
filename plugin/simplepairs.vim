@@ -42,16 +42,38 @@ command! SimplePairsDisable let b:simplepairs_disable = 1
 command! SimplePairsToggle let b:simplepairs_disable = !get(b:, 'simplepairs_disable', 0)
 command! SimplePairsHealth simplepairs#Health()
 
+# Every key simplepairs would take has a <Plug> target, defined whether or not
+# the defaults are installed.  Without them the only control a user had over
+# eleven insert-mode keys was g:simplepairs_default_mappings, which turns all
+# eleven off together; with them a key can be moved, or pairing kept on just
+# the brackets, without giving up the rest.
+inoremap <silent> <expr> <Plug>(simplepairs-open-paren) simplepairs#Open('(')
+inoremap <silent> <expr> <Plug>(simplepairs-open-bracket) simplepairs#Open('[')
+inoremap <silent> <expr> <Plug>(simplepairs-open-brace) simplepairs#Open('{')
+inoremap <silent> <expr> <Plug>(simplepairs-open-double-quote) simplepairs#Open('"')
+inoremap <silent> <expr> <Plug>(simplepairs-open-single-quote) simplepairs#Open("'")
+inoremap <silent> <expr> <Plug>(simplepairs-open-backtick) simplepairs#Open('`')
+inoremap <silent> <expr> <Plug>(simplepairs-close-paren) simplepairs#Close(')')
+inoremap <silent> <expr> <Plug>(simplepairs-close-bracket) simplepairs#Close(']')
+inoremap <silent> <expr> <Plug>(simplepairs-close-brace) simplepairs#Close('}')
+inoremap <silent> <expr> <Plug>(simplepairs-backspace) simplepairs#Backspace()
+inoremap <silent> <expr> <Plug>(simplepairs-enter) simplepairs#Enter()
+
+# The suite-wide guard: a default key is installed only into a slot that is
+# still empty and that the user has not already pointed at the <Plug> target
+# from somewhere else.  :inoremap overwrites without warning and simplepairs
+# keeps no copy of what it displaced, so the eleven bare :inoremap lines this
+# replaces destroyed a user's own insert-mode maps, and any earlier plugin's,
+# with no message and nothing to restore.  Inside this suite the casualty was
+# simplecc's completion-accept: it installs `imap <CR>
+# <Plug>(simplecc-select-enter)` behind exactly this guard, so an unguarded map
+# here won every time, and simplecc's own guard -- which found the slot free
+# and then lost it -- is what made the loss silent.  Guarded on both sides,
+# load order decides and neither plugin takes a key its owner already claimed.
 if g:simplepairs_default_mappings
-  inoremap <silent><expr> ( simplepairs#Open('(')
-  inoremap <silent><expr> [ simplepairs#Open('[')
-  inoremap <silent><expr> { simplepairs#Open('{')
-  inoremap <silent><expr> " simplepairs#Open('"')
-  inoremap <silent><expr> ' simplepairs#Open("'")
-  inoremap <silent><expr> ` simplepairs#Open('`')
-  inoremap <silent><expr> ) simplepairs#Close(')')
-  inoremap <silent><expr> ] simplepairs#Close(']')
-  inoremap <silent><expr> } simplepairs#Close('}')
-  inoremap <silent><expr> <BS> simplepairs#Backspace()
-  inoremap <silent><expr> <CR> simplepairs#Enter()
+  for [lhs, plug] in simplepairs#DEFAULT_MAPPINGS
+    if maparg(lhs, 'i') ==# '' && !hasmapto(plug, 'i')
+      execute 'imap <silent> ' .. lhs .. ' ' .. plug
+    endif
+  endfor
 endif

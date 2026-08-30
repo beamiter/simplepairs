@@ -2,6 +2,26 @@ vim9script
 
 const PAIRS = {'(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`'}
 const REVERSE = {')': '(', ']': '[', '}': '{'}
+
+# The key each default mapping goes on and the <Plug> target it goes through.
+# It lives here, not in plugin/simplepairs.vim, so that the guard that installs
+# these and the health check that reports on them read the same eleven rows: a
+# health check carrying its own copy of the table can only ever agree with
+# itself.
+export const DEFAULT_MAPPINGS = [
+  ['(', '<Plug>(simplepairs-open-paren)'],
+  ['[', '<Plug>(simplepairs-open-bracket)'],
+  ['{', '<Plug>(simplepairs-open-brace)'],
+  ['"', '<Plug>(simplepairs-open-double-quote)'],
+  ["'", '<Plug>(simplepairs-open-single-quote)'],
+  ['`', '<Plug>(simplepairs-open-backtick)'],
+  [')', '<Plug>(simplepairs-close-paren)'],
+  [']', '<Plug>(simplepairs-close-bracket)'],
+  ['}', '<Plug>(simplepairs-close-brace)'],
+  ['<BS>', '<Plug>(simplepairs-backspace)'],
+  ['<CR>', '<Plug>(simplepairs-enter)'],
+]
+
 const DISABLED_FILETYPE_FALLBACK = [
   'help', 'qf', 'terminal', 'simpletree', 'simpleminimap', 'simpleplug',
 ]
@@ -129,7 +149,14 @@ export def Backspace(): string
 enddef
 
 export def Enter(): string
-  if Disabled()
+  # A visible completion menu owns <CR>: Vim's popup accepts the selected match
+  # on it, and expanding a pair instead would insert a newline into whatever
+  # the menu left behind and then open a line above it.  This matters because
+  # the mapping guard alone cannot decide the composition both ways round --
+  # simplecc installs its completion-accept behind a maparg() guard, so in the
+  # load order where simplepairs reaches <CR> first simplecc declines and this
+  # is the only thing left between the popup and a mangled buffer.
+  if Disabled() || pumvisible()
     return "\<CR>"
   endif
   var text = getline('.')
@@ -145,10 +172,35 @@ export def Enter(): string
   return "\<CR>"
 enddef
 
+# Which of the eleven keys simplepairs actually holds right now.  The load-time
+# guard leaves a key alone when something is already bound to it, which is the
+# right thing to do and also invisible -- and 'default mappings: yes' answers a
+# different question, whether installing was attempted.  A user whose <CR>
+# belongs to a completion plugin, or whose ( belongs to their own vimrc, can
+# read it off here instead of guessing from behaviour.
+export def MappingReport(): list<string>
+  var report: list<string> = []
+  for [lhs, plug] in DEFAULT_MAPPINGS
+    var rhs = maparg(lhs, 'i')
+    if rhs ==# plug
+      report->add($'{lhs} -> {plug}')
+    elseif rhs ==# ''
+      report->add($'{lhs} unmapped')
+    else
+      report->add($'{lhs} held by {rhs}')
+    endif
+  endfor
+  return report
+enddef
+
 export def Health()
   echomsg 'SimplePairs health'
   echomsg $'  buffer: {Disabled() ? "disabled" : "enabled"}'
   var mappings_on = Flagged(get(g:, 'simplepairs_default_mappings', 1), true)
   echomsg $'  default mappings: {mappings_on ? "yes" : "no"}'
   echomsg $'  filetype: {empty(&l:filetype) ? "(none)" : &l:filetype}'
+  echomsg '  insert-mode keys:'
+  for line in MappingReport()
+    echomsg $'    {line}'
+  endfor
 enddef

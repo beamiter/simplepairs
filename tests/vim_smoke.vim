@@ -104,7 +104,11 @@ assert_equal('(', simplepairs#Open('('))
 g:simplepairs_disabled_filetypes = []
 
 assert_equal(2, exists(':SimplePairsToggle'))
-assert_match('simplepairs#Open', maparg('(', 'i'))
+# The default key goes through a <Plug> target rather than straight at the
+# function, so both links of the chain are asserted.  Whether the key is taken
+# at all when something is already bound to it is tests/vim_mappings.vim.
+assert_equal('<Plug>(simplepairs-open-paren)', maparg('(', 'i'))
+assert_match('simplepairs#Open', maparg('<Plug>(simplepairs-open-paren)', 'i'))
 silent simplepairs#Health()
 
 if !empty(v:errors)

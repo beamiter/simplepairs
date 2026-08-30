@@ -9,9 +9,27 @@ Enter.
 :SimplePairsToggle      Toggle the current buffer.
 :SimplePairsHealth      Show current state.
 
-Set g:simplepairs_default_mappings to zero before loading to keep mappings
-under vimrc control.  The expression functions simplepairs#Open(), #Close(),
-#Backspace() and #Enter() are public integration points.
+                                                        *simplepairs-mappings*
+By default simplepairs maps eleven insert-mode keys: ( [ { " ' ` ) ] } <BS>
+and <CR>.  Each is installed only if nothing is mapped to it already and its
+<Plug> target is not bound elsewhere, so a key that belongs to your vimrc or
+to another plugin -- a completion plugin's <CR>, typically -- is left alone.
+:SimplePairsHealth lists all eleven and says who holds each one.
+
+Every key has a <Plug> target, defined whether or not the defaults are
+installed, so one key can be moved without switching the other ten off:
+
+    <Plug>(simplepairs-open-paren)          <Plug>(simplepairs-close-paren)
+    <Plug>(simplepairs-open-bracket)        <Plug>(simplepairs-close-bracket)
+    <Plug>(simplepairs-open-brace)          <Plug>(simplepairs-close-brace)
+    <Plug>(simplepairs-open-double-quote)   <Plug>(simplepairs-backspace)
+    <Plug>(simplepairs-open-single-quote)   <Plug>(simplepairs-enter)
+    <Plug>(simplepairs-open-backtick)
+
+Set g:simplepairs_default_mappings to zero before loading to install none of
+them.  The expression functions simplepairs#Open(), #Close(), #Backspace() and
+#Enter() are public integration points; #Enter() returns a plain <CR> while a
+completion popup is open, so it never expands a pair into a visible menu.
 
 g:simplepairs_disabled_filetypes defaults to help, qf, terminal, simpletree,
 simpleminimap and simpleplug.  Configuration values are type-checked; a bad
