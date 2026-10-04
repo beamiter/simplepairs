@@ -151,6 +151,9 @@ assert_equal("()\<Left>", simplepairs#Open('('))
 g:simplepairs_disabled_filetypes = ['help']
 setlocal filetype=help.md
 assert_equal('(', simplepairs#Open('('))
+set nomagic
+assert_equal('(', simplepairs#Open('('), 'compound filetype under nomagic')
+set magic
 g:simplepairs_disabled_filetypes = []
 setlocal filetype=vim
 

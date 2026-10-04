@@ -43,7 +43,7 @@ def FiletypeHits(item: string): bool
   if item ==? &l:filetype
     return true
   endif
-  for part in split(&l:filetype, '\.')
+  for part in split(&l:filetype, '\m\.')
     if part ==? item
       return true
     endif
