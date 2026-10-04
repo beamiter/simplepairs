@@ -111,6 +111,94 @@ assert_equal('<Plug>(simplepairs-open-paren)', maparg('(', 'i'))
 assert_match('simplepairs#Open', maparg('<Plug>(simplepairs-open-paren)', 'i'))
 silent simplepairs#Health()
 
+# Close() used to skip over a closer that is escaped, so typing ) after \)
+# walked past the literal instead of inserting another closer.
+setline(1, '\)')
+cursor(1, 2)
+assert_equal(')', simplepairs#Close(')'))
+setline(1, '\\)')
+cursor(1, 3)
+assert_equal("\<Right>", simplepairs#Close(')'))
+
+# Backspace between an escaped opener and its closer used to eat both, turning
+# `\(|)` into `\` instead of deleting only the opener.
+setline(1, '\()')
+cursor(1, 3)
+assert_equal("\<BS>", simplepairs#Backspace())
+setline(1, '()')
+cursor(1, 2)
+assert_equal("\<BS>\<Del>", simplepairs#Backspace())
+
+# Enter inside `\(|)` used to expand as if the opener were a real pair.
+setline(1, '\()')
+cursor(1, 3)
+assert_equal("\<CR>", simplepairs#Enter())
+setline(1, '()')
+cursor(1, 2)
+assert_equal("\<CR>\<Esc>O", simplepairs#Enter())
+
+# A list with no usable strings used to disable nothing: FiletypeDisabled()
+# treated [42] as a real list and never fell back, so pairing ran in help.
+g:simplepairs_disabled_filetypes = [42]
+setlocal filetype=help
+assert_equal('(', simplepairs#Open('('))
+g:simplepairs_disabled_filetypes = []
+setlocal filetype=vim
+assert_equal("()\<Left>", simplepairs#Open('('))
+
+# Compound filetypes are dotted, and the disabled list names the parts: help.md
+# used to pair because FiletypeDisabled() compared the whole string.
+g:simplepairs_disabled_filetypes = ['help']
+setlocal filetype=help.md
+assert_equal('(', simplepairs#Open('('))
+g:simplepairs_disabled_filetypes = []
+setlocal filetype=vim
+
+# Health used to say only "disabled", so paste, readonly, and the buffer
+# toggle were indistinguishable from a filetype skip.
+setlocal readonly
+var health = execute('silent simplepairs#Health()')
+assert_match('disabled (readonly)', health)
+assert_equal('(', simplepairs#Open('('))
+setlocal noreadonly
+set paste
+health = execute('silent simplepairs#Health()')
+assert_match('disabled (paste)', health)
+set nopaste
+health = execute('silent simplepairs#Health()')
+assert_match('buffer: enabled', health)
+
+# Escaped() hardcoded a backslash, so a buffer whose 'quoteescape' is something
+# else still paired after that character -- `+` is a legal quoteescape.
+setlocal quoteescape=+
+setline(1, 'x+y')
+cursor(1, 3)
+assert_equal("'", simplepairs#Open("'"))
+setline(1, 'x+)')
+cursor(1, 3)
+assert_equal(')', simplepairs#Close(')'))
+setlocal quoteescape=\\
+setline(1, 'x+y')
+cursor(1, 3)
+assert_equal("''\<Left>", simplepairs#Open("'"))
+
+# Health used to re-read g:simplepairs_default_mappings, so assigning 0 after
+# load reported "no" while the eleven keys were still installed.
+g:simplepairs_default_mappings = 0
+health = execute('silent simplepairs#Health()')
+assert_match('default mappings: yes', health)
+assert_equal('<Plug>(simplepairs-open-paren)', maparg('(', 'i'))
+g:simplepairs_default_mappings = 1
+
+# Vim filetypes are usually lowercase, but 'filetype' can be set to any case
+# and FiletypeDisabled() used ==#, so HELP did not match the default 'help'
+# skip and pairing ran in a help buffer.
+g:simplepairs_disabled_filetypes = ['help']
+setlocal filetype=HELP
+assert_equal('(', simplepairs#Open('('))
+g:simplepairs_disabled_filetypes = []
+setlocal filetype=vim
+
 if !empty(v:errors)
   writefile(v:errors, ROOT .. '/tests/errors.log')
   cquit

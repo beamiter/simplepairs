@@ -26,8 +26,11 @@ const PLUGS = [
 ]
 
 g:simplepairs_default_mappings = 0
+g:simplepairs_disabled_filetypes = [42, v:true]
 execute 'source ' .. fnameescape(ROOT .. '/plugin/simplepairs.vim')
 assert_equal(0, g:simplepairs_default_mappings)
+assert_true(index(g:simplepairs_disabled_filetypes, 'help') >= 0,
+  'a list with no usable strings dropped the default disabled filetypes')
 
 for [lhs, plug, fn] in PLUGS
   assert_equal('', maparg(lhs, 'i'),

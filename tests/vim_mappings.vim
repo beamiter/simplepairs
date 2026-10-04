@@ -62,8 +62,19 @@ assert_equal('<Plug>(othercc-select-enter)', maparg('<CR>', 'i'))
 # vimrc line looks like, sourced before the plugin.
 imap <silent> <C-l> <Plug>(simplepairs-close-paren)
 
+# maparg(lhs, 'i') without a dict reports a buffer-local mapping in the current
+# buffer as if the global slot were taken, so a late :source with an ftplugin
+# map on `[` used to skip installing the global default for every other buffer.
+new
+inoremap <buffer> [ USER-BRACKET
+
 execute 'source ' .. fnameescape(ROOT .. '/plugin/simplepairs.vim')
 assert_equal(1, g:simplepairs_default_mappings)
+assert_equal('USER-BRACKET', maparg('[', 'i'),
+  'the buffer-local mapping on [ was overwritten')
+new
+assert_equal('<Plug>(simplepairs-open-bracket)', maparg('[', 'i'),
+  'a buffer-local [ at load time kept the global default from being installed')
 
 # Slots that were already spoken for, and what must still be in them.
 const CLAIMED = {

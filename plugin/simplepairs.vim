@@ -26,7 +26,10 @@ def Filetypes(value: any, fallback: list<string>): list<string>
   if type(value) != v:t_list
     return copy(fallback)
   endif
-  return filter(copy(value), (_, item) => type(item) == v:t_string)
+  var out = filter(copy(value), (_, item) => type(item) == v:t_string && !empty(item))
+  # An empty list is a real request ("disable nothing"). A list that contains
+  # only unusable items is a mistake, same as a wrong type.
+  return empty(out) && !empty(value) ? copy(fallback) : out
 enddef
 
 const DEFAULT_DISABLED_FILETYPES = [
@@ -72,7 +75,10 @@ inoremap <silent> <expr> <Plug>(simplepairs-enter) simplepairs#Enter()
 # load order decides and neither plugin takes a key its owner already claimed.
 if g:simplepairs_default_mappings
   for [lhs, plug] in simplepairs#DEFAULT_MAPPINGS
-    if maparg(lhs, 'i') ==# '' && !hasmapto(plug, 'i')
+    # maparg() without a dict prefers a buffer-local mapping in the current
+    # buffer, which is not a claim on the global slot.
+    var info = maparg(lhs, 'i', false, true)
+    if (empty(info) || get(info, 'buffer', 0) != 0) && !hasmapto(plug, 'i')
       execute 'imap <silent> ' .. lhs .. ' ' .. plug
     endif
   endfor

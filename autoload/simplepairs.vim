@@ -36,12 +36,44 @@ def Flagged(value: any, fallback: bool = false): bool
   return fallback
 enddef
 
+def FiletypeHits(item: string): bool
+  if empty(item)
+    return false
+  endif
+  if item ==? &l:filetype
+    return true
+  endif
+  for part in split(&l:filetype, '\.')
+    if part ==? item
+      return true
+    endif
+  endfor
+  return false
+enddef
+
 def FiletypeDisabled(value: any): bool
   if type(value) != v:t_list
-    return index(DISABLED_FILETYPE_FALLBACK, &l:filetype) >= 0
+    return FiletypeHitsList(DISABLED_FILETYPE_FALLBACK)
   endif
+  var valid = 0
   for item in value
-    if type(item) == v:t_string && item ==# &l:filetype
+    if type(item) != v:t_string || empty(item)
+      continue
+    endif
+    valid += 1
+    if FiletypeHits(item)
+      return true
+    endif
+  endfor
+  if valid == 0 && !empty(value)
+    return FiletypeHitsList(DISABLED_FILETYPE_FALLBACK)
+  endif
+  return false
+enddef
+
+def FiletypeHitsList(items: list<string>): bool
+  for item in items
+    if FiletypeHits(item)
       return true
     endif
   endfor
@@ -52,6 +84,25 @@ def Disabled(): bool
   return Flagged(get(b:, 'simplepairs_disable', 0))
     || FiletypeDisabled(get(g:, 'simplepairs_disabled_filetypes', []))
     || !&l:modifiable || &l:readonly || &l:paste
+enddef
+
+def DisableReason(): string
+  if Flagged(get(b:, 'simplepairs_disable', 0))
+    return 'buffer toggle'
+  endif
+  if FiletypeDisabled(get(g:, 'simplepairs_disabled_filetypes', []))
+    return 'filetype'
+  endif
+  if !&l:modifiable
+    return 'nomodifiable'
+  endif
+  if &l:readonly
+    return 'readonly'
+  endif
+  if &l:paste
+    return 'paste'
+  endif
+  return ''
 enddef
 
 # Everything Open() decides about the text behind the cursor, it decides from
@@ -82,9 +133,13 @@ enddef
 const PREFIX_TAIL = 64
 
 def Escaped(tail: string, continues_before_tail: bool): bool
+  var quoteescape = &l:quoteescape
+  if empty(quoteescape)
+    return false
+  endif
   var slash_count = 0
   var index = strlen(tail) - 1
-  while index >= 0 && strpart(tail, index, 1) ==# '\'
+  while index >= 0 && stridx(quoteescape, strpart(tail, index, 1)) >= 0
     slash_count += 1
     index -= 1
   endwhile
@@ -95,18 +150,29 @@ def Escaped(tail: string, continues_before_tail: bool): bool
     || slash_count % 2 == 1
 enddef
 
+# Whether the character at `byte` is escaped by a 'quoteescape' run immediately
+# before it.  Open() uses this for the character about to be typed; Close(),
+# Backspace() and Enter() use it for a character already in the line.
+def PrecedingEscaped(text: string, byte: number): bool
+  var quoteescape = &l:quoteescape
+  if byte <= 0 || empty(quoteescape)
+    return false
+  endif
+  var tail_start = max([0, byte - PREFIX_TAIL])
+  var tail = strpart(text, tail_start, byte - tail_start)
+  var run_continues = tail_start > 0
+    && stridx(quoteescape, strpart(text, tail_start - 1, 1)) >= 0
+    && !empty(tail) && stridx(quoteescape, strpart(tail, 0, 1)) >= 0
+  return Escaped(tail, run_continues)
+enddef
+
 export def Open(opening: string): string
   if Disabled() || !has_key(PAIRS, opening)
     return opening
   endif
   var text = getline('.')
   var byte = col('.') - 1
-  var tail_start = max([0, byte - PREFIX_TAIL])
-  var tail = strpart(text, tail_start, byte - tail_start)
-  var run_continues = tail_start > 0
-    && strpart(text, tail_start - 1, 1) ==# '\'
-    && !empty(tail) && strpart(tail, 0, 1) ==# '\'
-  if Escaped(tail, run_continues)
+  if PrecedingEscaped(text, byte)
     return opening
   endif
   var closing = PAIRS[opening]
@@ -117,6 +183,7 @@ export def Open(opening: string): string
     # Apostrophes inside identifiers and prose are text, not string delimiters.
     # The forward slice is bounded too.  It is wider than one byte so the
     # leading character can be multibyte; the anchored test reads no further.
+    var tail = strpart(text, max([0, byte - PREFIX_TAIL]), min([byte, PREFIX_TAIL]))
     if opening ==# "'" && tail =~# '\k$'
         && strpart(text, byte, PREFIX_TAIL) =~# '^\k'
       return opening
@@ -131,7 +198,10 @@ export def Close(closing: string): string
   endif
   var text = getline('.')
   var byte = col('.') - 1
-  return strpart(text, byte, strlen(closing)) ==# closing ? "\<Right>" : closing
+  if strpart(text, byte, strlen(closing)) !=# closing || PrecedingEscaped(text, byte)
+    return closing
+  endif
+  return "\<Right>"
 enddef
 
 export def Backspace(): string
@@ -145,7 +215,8 @@ export def Backspace(): string
   endif
   var opening = strpart(text, byte - 1, 1)
   var closing = strpart(text, byte, 1)
-  return get(PAIRS, opening, '') ==# closing ? "\<BS>\<Del>" : "\<BS>"
+  return get(PAIRS, opening, '') ==# closing && !PrecedingEscaped(text, byte - 1)
+    ? "\<BS>\<Del>" : "\<BS>"
 enddef
 
 export def Enter(): string
@@ -167,6 +238,7 @@ export def Enter(): string
   var opening = strpart(text, byte - 1, 1)
   var closing = strpart(text, byte, 1)
   if get(PAIRS, opening, '') ==# closing && index(['(', '[', '{', '`'], opening) >= 0
+      && !PrecedingEscaped(text, byte - 1)
     return "\<CR>\<Esc>O"
   endif
   return "\<CR>"
@@ -195,9 +267,15 @@ enddef
 
 export def Health()
   echomsg 'SimplePairs health'
-  echomsg $'  buffer: {Disabled() ? "disabled" : "enabled"}'
-  var mappings_on = Flagged(get(g:, 'simplepairs_default_mappings', 1), true)
-  echomsg $'  default mappings: {mappings_on ? "yes" : "no"}'
+  var reason = DisableReason()
+  echomsg '  buffer: ' .. (empty(reason) ? 'enabled' : 'disabled (' .. reason .. ')')
+  var held = 0
+  for [lhs, plug] in DEFAULT_MAPPINGS
+    if maparg(lhs, 'i') ==# plug
+      held += 1
+    endif
+  endfor
+  echomsg $'  default mappings: {held > 0 ? "yes" : "no"}'
   echomsg $'  filetype: {empty(&l:filetype) ? "(none)" : &l:filetype}'
   echomsg '  insert-mode keys:'
   for line in MappingReport()
