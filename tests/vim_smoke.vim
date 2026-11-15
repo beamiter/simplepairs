@@ -202,6 +202,31 @@ assert_equal('(', simplepairs#Open('('))
 g:simplepairs_disabled_filetypes = []
 setlocal filetype=vim
 
+# Drive real insert mappings: a rejected BS must not leave a trailing Del
+# that removes only the closing delimiter.  Include Vim's legacy aliases.
+var saved_bs = &backspace
+for bs in ['', '0', '1', 'indent,eol']
+  &backspace = bs
+  setline(1, '()')
+  cursor(1, 2)
+  feedkeys("i\<BS>\<Esc>", 'xt')
+  assert_equal('()', getline(1), 'restricted backspace=' .. bs)
+endfor
+for bs in ['2', '3', 'indent,eol,start', 'indent,eol,nostop']
+  &backspace = bs
+  setline(1, '()')
+  cursor(1, 2)
+  feedkeys("i\<BS>\<Esc>", 'xt')
+  assert_equal('', getline(1), 'pair deletion backspace=' .. bs)
+endfor
+# Conservative fallback still lets Vim delete newly typed text normally.
+set backspace=indent,eol
+setline(1, '')
+cursor(1, 1)
+feedkeys("ix\<BS>\<Esc>", 'xt')
+assert_equal('', getline(1))
+&backspace = saved_bs
+
 if !empty(v:errors)
   writefile(v:errors, ROOT .. '/tests/errors.log')
   cquit

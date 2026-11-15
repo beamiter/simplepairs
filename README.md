@@ -25,3 +25,7 @@ Expression mappings inspect only a bounded neighborhood around the cursor, so
 pairing remains responsive on minified or generated single-line files.
 If an escape-backslash run exceeds that bound, quote pairing fails closed
 instead of guessing its parity and inserting a possibly wrong closing quote.
+
+Paired backspace requires 'backspace' to include start or nostop (legacy 2 or
+3). With a restrictive value it delegates to Vim's ordinary backspace, even
+for newly typed pairs, so a rejected deletion cannot erase only the closer.

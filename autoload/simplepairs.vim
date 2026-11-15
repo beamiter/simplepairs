@@ -205,7 +205,15 @@ export def Close(closing: string): string
 enddef
 
 export def Backspace(): string
-  if Disabled()
+  # With a restrictive 'backspace', Vim may reject the first <BS> at the
+  # insertion boundary.  Appending <Del> would then erase only the closer.
+  # An expression mapping cannot reliably inspect Vim's current insert-start
+  # boundary, so delegate to plain <BS> unless crossing it is permitted.
+  var bs = &backspace
+  var crosses_start = bs ==# '2' || bs ==# '3'
+    || index(split(bs, ','), 'start') >= 0
+    || index(split(bs, ','), 'nostop') >= 0
+  if Disabled() || !crosses_start
     return "\<BS>"
   endif
   var text = getline('.')
