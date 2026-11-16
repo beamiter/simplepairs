@@ -80,13 +80,23 @@ def FiletypeHitsList(items: list<string>): bool
   return false
 enddef
 
+# Insert mappings also run in Replace and Virtual Replace mode.  Expanding a
+# pair there overwrites an extra source character; paired backspace bypasses
+# Vim's replace stack and can delete text instead of restoring it.
+def Replacing(): bool
+  return strpart(mode(1), 0, 1) ==# 'R'
+enddef
+
 def Disabled(): bool
-  return Flagged(get(b:, 'simplepairs_disable', 0))
+  return Replacing() || Flagged(get(b:, 'simplepairs_disable', 0))
     || FiletypeDisabled(get(g:, 'simplepairs_disabled_filetypes', []))
     || !&l:modifiable || &l:readonly || &l:paste
 enddef
 
 def DisableReason(): string
+  if Replacing()
+    return 'replace mode'
+  endif
   if Flagged(get(b:, 'simplepairs_disable', 0))
     return 'buffer toggle'
   endif

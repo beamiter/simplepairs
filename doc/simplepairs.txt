@@ -2,7 +2,8 @@
 
 SimplePairs inserts (), [], {}, quotes and backticks, skips an existing closing
 character, removes empty pairs with Backspace and expands paired delimiters on
-Enter.
+Enter. In Replace and Virtual Replace mode these mappings delegate to Vim
+without pairing, skipping, or paired deletion, preserving replaced source text.
 
 :SimplePairsEnable      Enable the current buffer.
 :SimplePairsDisable     Disable the current buffer.

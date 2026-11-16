@@ -1,6 +1,6 @@
-.PHONY: check defcompile test mappings nomappings perf
+.PHONY: check defcompile test mappings nomappings perf replace
 
-check: defcompile test mappings nomappings perf
+check: defcompile test mappings nomappings perf replace
 
 defcompile:
 	vim -N -u NONE -n -i NONE -es -S tests/defcompile.vim
@@ -20,3 +20,7 @@ nomappings:
 
 perf:
 	vim -N -u NONE -n -i NONE -es -S tests/perf.vim
+
+# Insert mappings must preserve native Replace/Virtual Replace semantics.
+replace:
+	vim -N -u NONE -n -i NONE -es -S tests/replace_mode.vim
